@@ -97,7 +97,7 @@ export function AuthProvider({ children }: PropsWithChildren<{}>) {
       await post<AuthSuccessResponse>('/auth/signup', {
         email,
         password,
-        username: nickname,
+        nickname,
       });
     } finally {
       setLoading(false);

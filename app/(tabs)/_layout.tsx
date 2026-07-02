@@ -1,35 +1,55 @@
 import { Tabs } from 'expo-router';
-import React from 'react';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 import { HapticTab } from '@/components/haptic-tab';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+        tabBarActiveTintColor: '#1F4F3A',
+        tabBarInactiveTintColor: '#868686',
         headerShown: false,
         tabBarButton: HapticTab,
+        tabBarStyle: {
+          backgroundColor: '#fff',
+          borderTopColor: '#E2E8F0',
+          borderTopWidth: 1,
+        },
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontFamily: 'Pretendard',
+        },
       }}>
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
+          title: '피드',
+          tabBarIcon: ({ color }) => <MaterialIcons name="article" size={24} color={color} />,
         }}
       />
       <Tabs.Screen
-        name="explore"
+        name="ledger"
         options={{
-          title: 'Explore',
-          tabBarIcon: ({ color }) => <IconSymbol size={28} name="paperplane.fill" color={color} />,
+          title: '가계부',
+          tabBarIcon: ({ color }) => <MaterialIcons name="account-balance-wallet" size={24} color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="stats"
+        options={{
+          title: '통계',
+          tabBarIcon: ({ color }) => <MaterialIcons name="bar-chart" size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: '설정',
+          tabBarIcon: ({ color }) => <MaterialIcons name="settings" size={24} color={color} />,
+        }}
+      />
+      <Tabs.Screen name="explore" options={{ href: null }} />
     </Tabs>
   );
 }
