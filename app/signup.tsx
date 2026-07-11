@@ -1,3 +1,4 @@
+import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
   Alert,
@@ -11,7 +12,6 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Link, useRouter } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { useAuth } from '@/providers/auth';
@@ -35,6 +35,37 @@ export default function SignupScreen() {
       return;
     }
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim())) {
+      setError('올바른 이메일 형식이 아닙니다.');
+      return;
+    }
+
+    if (email.trim().length > 100) {
+      setError('이메일은 100자 이하로 입력해주세요.');
+      return;
+    }
+
+    if (nickname.trim().length < 2) {
+      setError('닉네임은 2자 이상 입력해주세요.');
+      return;
+    }
+
+    if (nickname.trim().length > 50) {
+      setError('닉네임은 50자 이하로 입력해주세요.');
+      return;
+    }
+
+    if (password.length < 8) {
+      setError('비밀번호는 8자 이상 입력해주세요.');
+      return;
+    }
+
+    if (password.length > 20) {
+      setError('비밀번호는 20자 이하로 입력해주세요.');
+      return;
+    }
+
     if (password !== confirmPassword) {
       setError('비밀번호가 일치하지 않습니다.');
       return;
@@ -48,7 +79,7 @@ export default function SignupScreen() {
     try {
       await signUp(email.trim(), password, nickname.trim());
       Alert.alert('회원가입 완료', '로그인해주세요.', [
-        { text: '확인', onPress: () => router.replace('/login' as any) }
+        { text: '확인', onPress: () => router.replace('/login' as any) },
       ]);
     } catch (err) {
       const message = err instanceof Error ? err.message : '회원가입에 실패했습니다.';
@@ -61,11 +92,14 @@ export default function SignupScreen() {
     <SafeAreaView style={styles.safeArea}>
       <KeyboardAvoidingView
         style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-        <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContainer}
+          keyboardShouldPersistTaps="handled"
+        >
           <View style={styles.topSection}>
-            <View style={styles.avatar}>
-            </View>
+            <View style={styles.avatar}></View>
             <ThemedText type="title" style={styles.nameText}>
               씀씀이
             </ThemedText>
@@ -121,7 +155,10 @@ export default function SignupScreen() {
                 </View>
                 <ThemedText style={styles.checkboxLabel}>이용약관 동의</ThemedText>
               </Pressable>
-              <Pressable style={[styles.checkboxRow, styles.marginTop]} onPress={() => setAgreePrivacy((prev) => !prev)}>
+              <Pressable
+                style={[styles.checkboxRow, styles.marginTop]}
+                onPress={() => setAgreePrivacy((prev) => !prev)}
+              >
                 <View style={[styles.checkbox, agreePrivacy && styles.checkboxChecked]}>
                   {agreePrivacy ? <View style={styles.checkboxIndicator} /> : null}
                 </View>
@@ -140,7 +177,9 @@ export default function SignupScreen() {
             <View style={styles.footerRow}>
               <ThemedText style={styles.footerText}>이미 계정이 있으신가요?</ThemedText>
               <Link href={'/login' as any}>
-                <ThemedText type="defaultSemiBold" style={styles.footerLink}>로그인</ThemedText>
+                <ThemedText type="defaultSemiBold" style={styles.footerLink}>
+                  로그인
+                </ThemedText>
               </Link>
             </View>
           </View>
