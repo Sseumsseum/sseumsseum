@@ -1,5 +1,5 @@
-import { createContext, useContext, useEffect, useState, type PropsWithChildren } from 'react';
 import * as SecureStore from 'expo-secure-store';
+import { createContext, useContext, useEffect, useState, type PropsWithChildren } from 'react';
 
 import { post } from '@/services/api';
 
@@ -22,10 +22,15 @@ export type AuthContextType = {
 };
 
 type AuthSuccessResponse = {
-  token?: string;
   accessToken?: string;
-  email?: string;
-  name?: string;
+  email: string;
+  nickname?: string;
+};
+
+type ApiResponseWrapper<T> = {
+  success: boolean;
+  message: string;
+  data: T;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -46,6 +51,7 @@ export function AuthProvider({ children }: PropsWithChildren<{}>) {
   const [loading, setLoading] = useState(false);
   const [initializing, setInitializing] = useState(true);
 
+  // 앱 시작 시, SecureStore에서 토큰과 이메일을 가져와 세션을 복원합니다.
   useEffect(() => {
     async function restoreSession() {
       try {
@@ -66,44 +72,53 @@ export function AuthProvider({ children }: PropsWithChildren<{}>) {
     restoreSession();
   }, []);
 
-  async function handleAuthSuccess(result: AuthSuccessResponse, email: string, defaultName?: string) {
-    const jwt = result.token || result.accessToken;
-    const userEmail = result.email || email;
+  // 인증 성공 시, 토큰과 이메일을 저장하고 상태를 업데이트합니다.
+  async function handleAuthSuccess(result: AuthSuccessResponse) {
+    const jwt = result.accessToken;
 
     if (!jwt) {
       throw new Error('서버에서 토큰을 받지 못했습니다.');
     }
 
-    await saveAuthData(jwt, userEmail);
+    await saveAuthData(jwt, result.email);
     setToken(jwt);
-    setUser({ email: userEmail, name: result.name || defaultName });
+    setUser({ email: result.email, name: result.nickname });
   }
 
+  // 로그인
   async function signIn(email: string, password: string) {
     setLoading(true);
 
     try {
-      const result = await post<AuthSuccessResponse>('/auth/login', { email, password });
-      await handleAuthSuccess(result, email);
+      const response = await post<ApiResponseWrapper<AuthSuccessResponse>>('/auth/login', {
+        email,
+        password,
+      });
+      if (!response.success) throw new Error(response.message);
+      await handleAuthSuccess(response.data);
     } finally {
       setLoading(false);
     }
   }
 
+  // 회원가입
   async function signUp(email: string, password: string, nickname: string) {
     setLoading(true);
 
     try {
-      await post<AuthSuccessResponse>('/auth/signup', {
+      const response = await post<ApiResponseWrapper<AuthSuccessResponse>>('/auth/signup', {
         email,
         password,
         nickname,
       });
+      if (!response.success) throw new Error(response.message);
+      await handleAuthSuccess(response.data);
     } finally {
       setLoading(false);
     }
   }
 
+  // 로그아웃
   async function signOut() {
     setLoading(true);
     try {
