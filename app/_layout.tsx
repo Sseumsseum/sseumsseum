@@ -1,9 +1,9 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
 import { useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider, useAuth } from '@/providers/auth';
@@ -16,7 +16,9 @@ function RootLayoutNav() {
   const { user, initializing } = useAuth();
   const segments = useSegments();
   const router = useRouter();
-  const inAuthRoute = (segments as string[]).some((segment) => segment === 'login' || segment === 'signup');
+  const inAuthRoute = (segments as string[]).some(
+    (segment) => segment === 'login' || segment === 'signup',
+  );
 
   useEffect(() => {
     if (initializing) {
@@ -61,7 +63,13 @@ export default function RootLayout() {
       <AuthProvider>
         <RootLayoutNav />
       </AuthProvider>
-      <StatusBar style="auto" />
+      <StatusBar
+        style="dark"
+        backgroundColor={
+          colorScheme === 'dark' ? DarkTheme.colors.background : DefaultTheme.colors.background
+        }
+        translucent={false}
+      />
     </ThemeProvider>
   );
 }
