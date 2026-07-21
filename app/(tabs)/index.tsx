@@ -1,8 +1,9 @@
-import { View, Text, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import Header from '@/components/header';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 type Ledger = {
   id: string;
@@ -66,7 +67,9 @@ const MOCK_FEED: Ledger[] = [
 
 function FeedCard({ item, onCommentPress }: { item: Ledger; onCommentPress: () => void }) {
   const isExpense = item.type === '지출';
-  const amountText = isExpense ? `-${item.amount.toLocaleString()}원` : `+${item.amount.toLocaleString()}원`;
+  const amountText = isExpense
+    ? `-${item.amount.toLocaleString()}원`
+    : `+${item.amount.toLocaleString()}원`;
 
   return (
     <View style={styles.card}>
@@ -74,10 +77,7 @@ function FeedCard({ item, onCommentPress }: { item: Ledger; onCommentPress: () =
         <View style={styles.imagePlaceholder}>
           <MaterialIcons name="image" size={40} color="#CBD5E1" />
         </View>
-        <LinearGradient
-          colors={['rgba(0,0,0,0.22)', 'transparent']}
-          style={styles.imageTopOverlay}
-        >
+        <LinearGradient colors={['rgba(0,0,0,0.22)', 'transparent']} style={styles.imageTopOverlay}>
           <View style={styles.cardHeader}>
             <View style={[styles.avatar, { backgroundColor: item.avatarColor }]}>
               <Text style={styles.avatarText}>{item.user[0]}</Text>
@@ -126,18 +126,15 @@ export default function FeedScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>피드</Text>
-        <TouchableOpacity hitSlop={8} onPress={() => router.push('/notifications' as any)}>
-          <MaterialIcons name="notifications-none" size={26} color="#11181C" />
-        </TouchableOpacity>
-      </View>
+      <Header left={<Text style={styles.headerTitle}>피드</Text>} />
       <ScrollView showsVerticalScrollIndicator={false}>
         {MOCK_FEED.map((item) => (
           <FeedCard
             key={item.id}
             item={item}
-            onCommentPress={() => router.push({ pathname: '/comments/[id]', params: { id: item.id } } as any)}
+            onCommentPress={() =>
+              router.push({ pathname: '/comments/[id]', params: { id: item.id } } as any)
+            }
           />
         ))}
       </ScrollView>
@@ -148,14 +145,6 @@ export default function FeedScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
     backgroundColor: '#fff',
   },
   headerTitle: {
