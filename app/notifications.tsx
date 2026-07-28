@@ -4,44 +4,49 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
-type NotificationItem = {
-  id: string;
-  user: string;
-  avatarColor: string;
-  message: string;
-  time: string;
-  type: 'comment' | 'like' | 'friend_request';
-  isNew: boolean;
-};
+import type { Notification } from '@/types';
 
-const MOCK_NOTIFICATIONS: NotificationItem[] = [
-  { id: 'n1', user: '희원', avatarColor: '#9B5DE5', message: '희원님이 댓글을 남겼습니다: 가자가자', time: '방금 전', type: 'comment', isNew: true },
-  { id: 'n2', user: '희원', avatarColor: '#9B5DE5', message: '희원님이 희원님의 글을 좋아합니다.', time: '방금 전', type: 'like', isNew: true },
-  { id: 'n3', user: '진실', avatarColor: '#F77F00', message: '진실님이 희원님의 글을 좋아합니다.', time: '10분 전', type: 'like', isNew: true },
-  { id: 'n4', user: '희원', avatarColor: '#9B5DE5', message: '희원님이 희원님의 글을 좋아합니다.', time: '4월 2일', type: 'like', isNew: false },
-  { id: 'n5', user: '희원', avatarColor: '#9B5DE5', message: '희원님이 희원님의 글을 좋아합니다.', time: '4월 1일', type: 'like', isNew: false },
-  { id: 'n6', user: '진실', avatarColor: '#F77F00', message: '진실님이 희원님의 글을 좋아합니다.', time: '4월 1일', type: 'like', isNew: false },
-  { id: 'n7', user: '진실', avatarColor: '#F77F00', message: '진실님이 댓글을 남겼습니다: 야 최희진 돈 아낀다매 ㅋㅋㅋ', time: '4월 1일', type: 'comment', isNew: false },
-  { id: 'n8', user: '희원', avatarColor: '#9B5DE5', message: '희원님이 친구 요청을 보냈습니다.', time: '3월 31일', type: 'friend_request', isNew: false },
+const MOCK_NOTIFICATIONS: (Notification & { avatarColor: string })[] = [
+  { id: 'n1', fromUser: '희원', avatarColor: '#9B5DE5', type: 'COMMENT', targetIdx: 'c4', targetType: 'COMMENT', isRead: false, createdAt: '방금 전', commentContent: '가자가자' },
+  { id: 'n2', fromUser: '희원', avatarColor: '#9B5DE5', type: 'LIKE', targetIdx: '1', targetType: 'LEDGER', isRead: false, createdAt: '방금 전' },
+  { id: 'n3', fromUser: '진실', avatarColor: '#F77F00', type: 'LIKE', targetIdx: '1', targetType: 'LEDGER', isRead: false, createdAt: '10분 전' },
+  { id: 'n4', fromUser: '희원', avatarColor: '#9B5DE5', type: 'LIKE', targetIdx: '1', targetType: 'LEDGER', isRead: true, createdAt: '4월 2일' },
+  { id: 'n5', fromUser: '희원', avatarColor: '#9B5DE5', type: 'LIKE', targetIdx: '2', targetType: 'LEDGER', isRead: true, createdAt: '4월 1일' },
+  { id: 'n6', fromUser: '진실', avatarColor: '#F77F00', type: 'LIKE', targetIdx: '2', targetType: 'LEDGER', isRead: true, createdAt: '4월 1일' },
+  { id: 'n7', fromUser: '진실', avatarColor: '#F77F00', type: 'COMMENT', targetIdx: 'c1', targetType: 'COMMENT', isRead: true, createdAt: '4월 1일', commentContent: '야 최희진 돈 아낀다매 ㅋㅋㅋ' },
+  { id: 'n8', fromUser: '희원', avatarColor: '#9B5DE5', type: 'FRIEND_REQ', targetIdx: '1', targetType: null, isRead: true, createdAt: '3월 31일' },
 ];
+
+function getMessage(item: (typeof MOCK_NOTIFICATIONS)[0]): string {
+  switch (item.type) {
+    case 'LIKE':
+      return `${item.fromUser}님이 게시물을 좋아합니다.`;
+    case 'COMMENT':
+      return `${item.fromUser}님이 댓글을 남겼습니다: ${item.commentContent ?? ''}`;
+    case 'FRIEND_REQ':
+      return `${item.fromUser}님이 친구 요청을 보냈습니다.`;
+    case 'FRIEND_ACCEPT':
+      return `${item.fromUser}님이 친구 요청을 수락했습니다.`;
+  }
+}
 
 export default function NotificationsScreen() {
   const router = useRouter();
   const [accepted, setAccepted] = useState<Set<string>>(new Set(['n8']));
 
-  const newItems = MOCK_NOTIFICATIONS.filter((n) => n.isNew);
-  const prevItems = MOCK_NOTIFICATIONS.filter((n) => !n.isNew);
+  const newItems = MOCK_NOTIFICATIONS.filter((n) => !n.isRead);
+  const prevItems = MOCK_NOTIFICATIONS.filter((n) => n.isRead);
 
-  function renderItem(item: NotificationItem) {
+  function renderItem(item: (typeof MOCK_NOTIFICATIONS)[0]) {
     return (
       <View key={item.id} style={styles.row}>
         <View style={[styles.avatar, { backgroundColor: item.avatarColor }]}>
-          <Text style={styles.avatarText}>{item.user[0]}</Text>
+          <Text style={styles.avatarText}>{item.fromUser[0]}</Text>
         </View>
         <View style={styles.body}>
-          <Text style={styles.message}>{item.message}</Text>
-          <Text style={styles.time}>{item.time}</Text>
-          {item.type === 'friend_request' && (
+          <Text style={styles.message}>{getMessage(item)}</Text>
+          <Text style={styles.time}>{item.createdAt}</Text>
+          {item.type === 'FRIEND_REQ' && (
             <TouchableOpacity
               style={[styles.acceptButton, accepted.has(item.id) && styles.acceptedButton]}
               onPress={() => setAccepted((prev) => new Set([...prev, item.id]))}
@@ -58,7 +63,7 @@ export default function NotificationsScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
           <MaterialIcons name="arrow-back-ios" size={20} color="#11181C" />
@@ -154,10 +159,12 @@ const styles = StyleSheet.create({
   acceptButton: {
     alignSelf: 'flex-start',
     marginTop: 8,
-    paddingHorizontal: 16,
+    paddingHorizontal: 24,
     paddingVertical: 8,
+    minWidth: 96,
     borderRadius: 8,
     backgroundColor: '#1F4F3A',
+    alignItems: 'center',
   },
   acceptedButton: {
     backgroundColor: '#F1F5F9',

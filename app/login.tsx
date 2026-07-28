@@ -4,13 +4,13 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  SafeAreaView,
   ScrollView,
   StyleSheet,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Link, useRouter } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
@@ -36,12 +36,11 @@ export default function LoginScreen() {
     try {
       await signIn(email.trim(), password);
       Alert.alert('로그인 성공', '환영합니다!', [
-        { text: '확인', onPress: () => router.replace('/(tabs)' as any) },
+        { text: '확인', onPress: () => router.replace('/(tabs)' as any) }
       ]);
+      router.replace('/(tabs)' as any);
     } catch (err) {
-      const message = err instanceof Error ? err.message : '로그인에 실패했습니다.';
-      setError(message);
-      Alert.alert('로그인 실패', message);
+      setError(err instanceof Error ? err.message : '로그인에 실패했습니다.');
     }
   }
 

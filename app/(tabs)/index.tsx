@@ -1,92 +1,82 @@
-import Header from '@/components/header';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  View,
+  Text,
+  FlatList,
+  StyleSheet,
+  TouchableOpacity,
+  Modal,
+  Pressable,
+  ActivityIndicator,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Image } from 'expo-image';
+import { useRouter } from 'expo-router';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
-type Ledger = {
-  id: string;
-  user: string;
-  avatarColor: string;
-  date: string;
-  type: '지출' | '수입' | '저축';
-  name: string;
-  amount: number;
-  category: string;
-  memo: string | null;
-  amountPublic: boolean;
-  likes: number;
-  comments: number;
-};
+import Header from '@/components/header';
+import { useAuth } from '@/providers/auth';
+import { fetchFeeds } from '@/services/feeds';
+import { resolveImageUrl } from '@/services/api';
+import { formatRelativeDate } from '@/utils/format';
+import type { FeedListItem } from '@/types';
 
-const MOCK_FEED: Ledger[] = [
-  {
-    id: '1',
-    user: '희원',
-    avatarColor: '#9B5DE5',
-    date: '2026.04.04 · 3시간 전',
-    type: '지출',
-    name: '르칵투스 명일동점',
-    amount: 15000,
-    category: '식비',
-    memo: '와 된장 파스타 처음 먹어보는데 생각보다 맛있다',
-    amountPublic: true,
-    likes: 12,
-    comments: 3,
-  },
-  {
-    id: '2',
-    user: '진실',
-    avatarColor: '#F77F00',
-    date: '2026.04.04 · 43분 전',
-    type: '지출',
-    name: '에이블리',
-    amount: 32000,
-    category: '의류',
-    memo: '카고 팬츠 너무 귀여움 ㅜㅜ 사이즈도 딱 맞았어',
-    amountPublic: true,
-    likes: 8,
-    comments: 1,
-  },
-  {
-    id: '3',
-    user: '민준',
-    avatarColor: '#00BBF9',
-    date: '2026.04.03 · 1일 전',
-    type: '수입',
-    name: '월급',
-    amount: 2500000,
-    category: '수입',
-    memo: '드디어 월급날 🎉',
-    amountPublic: true,
-    likes: 5,
-    comments: 0,
-  },
-];
+const PAGE_SIZE = 10;
 
-function FeedCard({ item, onCommentPress }: { item: Ledger; onCommentPress: () => void }) {
-  const isExpense = item.type === '지출';
-  const amountText = isExpense
-    ? `-${item.amount.toLocaleString()}원`
-    : `+${item.amount.toLocaleString()}원`;
+function FeedCard({
+  item,
+  onLikePress,
+  onCommentPress,
+  onMenuPress,
+}: {
+  item: FeedListItem;
+  onLikePress: () => void;
+  onCommentPress: () => void;
+  onMenuPress: () => void;
+}) {
+  const amountText = item.amount !== null ? `-${item.amount.toLocaleString()}원` : '금액 비공개';
+  const image = item.images[0];
+  const avatar = item.writer.profileImg;
+  const [imageFailed, setImageFailed] = useState(false);
+  const [avatarFailed, setAvatarFailed] = useState(false);
 
   return (
     <View style={styles.card}>
       <View style={styles.imageContainer}>
-        <View style={styles.imagePlaceholder}>
-          <MaterialIcons name="image" size={40} color="#CBD5E1" />
-        </View>
-        <LinearGradient colors={['rgba(0,0,0,0.22)', 'transparent']} style={styles.imageTopOverlay}>
+        {image && !imageFailed ? (
+          <Image
+            source={{ uri: resolveImageUrl(image) }}
+            style={styles.imagePlaceholder}
+            contentFit="cover"
+            onError={() => setImageFailed(true)}
+          />
+        ) : (
+          <View style={styles.imagePlaceholder}>
+            <MaterialIcons name="image" size={40} color="#CBD5E1" />
+          </View>
+        )}
+        <LinearGradient
+          colors={['rgba(0,0,0,0.22)', 'transparent']}
+          style={styles.imageTopOverlay}
+        >
           <View style={styles.cardHeader}>
-            <View style={[styles.avatar, { backgroundColor: item.avatarColor }]}>
-              <Text style={styles.avatarText}>{item.user[0]}</Text>
-            </View>
+            {avatar && !avatarFailed ? (
+              <Image
+                source={{ uri: resolveImageUrl(avatar) }}
+                style={styles.avatar}
+                onError={() => setAvatarFailed(true)}
+              />
+            ) : (
+              <View style={[styles.avatar, styles.avatarFallback]}>
+                <MaterialIcons name="person" size={24} color="#94A3B8" />
+              </View>
+            )}
             <View style={styles.userInfo}>
-              <Text style={styles.userName}>{item.user}</Text>
-              <Text style={styles.userDate}>{item.date}</Text>
+              <Text style={styles.userName}>{item.writer.nickname}</Text>
+              <Text style={styles.userDate}>{formatRelativeDate(item.date)}</Text>
             </View>
-            <TouchableOpacity hitSlop={8}>
+            <TouchableOpacity hitSlop={8} onPress={onMenuPress}>
               <MaterialIcons name="more-vert" size={20} color="#fff" />
             </TouchableOpacity>
           </View>
@@ -100,21 +90,21 @@ function FeedCard({ item, onCommentPress }: { item: Ledger; onCommentPress: () =
         <Text style={styles.storeName} numberOfLines={1}>
           {item.name}
         </Text>
-        <Text style={[styles.amount, isExpense ? styles.expense : styles.income]}>
-          {amountText}
-        </Text>
+        <Text style={[styles.amount, item.amount !== null ? styles.expense : styles.amountHidden]}>{amountText}</Text>
       </View>
 
-      {item.memo ? <Text style={styles.content}>{item.memo}</Text> : null}
-
       <View style={styles.actions}>
-        <TouchableOpacity style={styles.actionItem} hitSlop={8}>
-          <MaterialIcons name="favorite-border" size={18} color="#868686" />
-          <Text style={styles.actionCount}>{item.likes}</Text>
+        <TouchableOpacity style={styles.actionItem} hitSlop={8} onPress={onLikePress}>
+          <MaterialIcons
+            name={item.isHearted ? 'favorite' : 'favorite-border'}
+            size={18}
+            color={item.isHearted ? '#D92D20' : '#868686'}
+          />
+          <Text style={styles.actionCount}>{item.heartCount}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.actionItem} hitSlop={8} onPress={onCommentPress}>
           <MaterialIcons name="chat-bubble-outline" size={18} color="#868686" />
-          <Text style={styles.actionCount}>{item.comments}</Text>
+          <Text style={styles.actionCount}>{item.commentCount}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -123,21 +113,146 @@ function FeedCard({ item, onCommentPress }: { item: Ledger; onCommentPress: () =
 
 export default function FeedScreen() {
   const router = useRouter();
+  const { token, initializing, user } = useAuth();
+
+  const [items, setItems] = useState<FeedListItem[]>([]);
+  const [cursor, setCursor] = useState<number | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [menuItem, setMenuItem] = useState<FeedListItem | null>(null);
+
+  const loadInitial = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const page = await fetchFeeds(null, PAGE_SIZE, token);
+      setItems(page);
+      setCursor(page.length > 0 ? page[page.length - 1].ledgerIdx : null);
+      setHasMore(page.length === PAGE_SIZE);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '피드를 불러오지 못했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (initializing) return;
+    loadInitial();
+  }, [initializing, loadInitial]);
+
+  async function loadMore() {
+    if (!hasMore || loadingMore || loading) return;
+    setLoadingMore(true);
+    try {
+      const page = await fetchFeeds(cursor, PAGE_SIZE, token);
+      setItems((prev) => [...prev, ...page]);
+      setCursor(page.length > 0 ? page[page.length - 1].ledgerIdx : cursor);
+      setHasMore(page.length === PAGE_SIZE);
+    } catch {
+      // 다음 페이지 로드 실패 시 조용히 중단하고 다음 스크롤에서 재시도할 수 있도록 둔다.
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  function toggleHeart(ledgerIdx: number) {
+    setItems((prev) =>
+      prev.map((item) =>
+        item.ledgerIdx === ledgerIdx
+          ? { ...item, isHearted: !item.isHearted, heartCount: item.heartCount + (item.isHearted ? -1 : 1) }
+          : item,
+      ),
+    );
+  }
+
+  const currentUserName = user?.name ?? user?.email?.split('@')[0];
+  const isOwn = menuItem?.writer.nickname === currentUserName;
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <Header left={<Text style={styles.headerTitle}>피드</Text>} />
-      <ScrollView showsVerticalScrollIndicator={false}>
-        {MOCK_FEED.map((item) => (
-          <FeedCard
-            key={item.id}
-            item={item}
-            onCommentPress={() =>
-              router.push({ pathname: '/comments/[id]', params: { id: item.id } } as any)
-            }
-          />
-        ))}
-      </ScrollView>
+
+      {loading ? (
+        <View style={styles.centered}>
+          <ActivityIndicator color="#1F4F3A" />
+        </View>
+      ) : error ? (
+        <View style={styles.centered}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={loadInitial}>
+            <Text style={styles.retryText}>다시 시도</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <FlatList
+          data={items}
+          keyExtractor={(item) => String(item.ledgerIdx)}
+          showsVerticalScrollIndicator={false}
+          onEndReachedThreshold={0.4}
+          onEndReached={loadMore}
+          ListEmptyComponent={
+            <View style={styles.centered}>
+              <Text style={styles.emptyText}>아직 등록된 피드가 없어요.</Text>
+            </View>
+          }
+          ListFooterComponent={
+            loadingMore ? (
+              <View style={styles.footerLoading}>
+                <ActivityIndicator color="#1F4F3A" />
+              </View>
+            ) : null
+          }
+          renderItem={({ item }) => (
+            <FeedCard
+              item={item}
+              onLikePress={() => toggleHeart(item.ledgerIdx)}
+              onMenuPress={() => setMenuItem(item)}
+              onCommentPress={() =>
+                router.push({ pathname: '/comments/[id]', params: { id: String(item.ledgerIdx) } } as any)
+              }
+            />
+          )}
+        />
+      )}
+
+      <Modal visible={menuItem !== null} transparent animationType="fade" onRequestClose={() => setMenuItem(null)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setMenuItem(null)}>
+          <View style={styles.menuSheet}>
+            {isOwn ? (
+              <>
+                <TouchableOpacity style={styles.menuItem} onPress={() => setMenuItem(null)}>
+                  <Text style={styles.menuText}>수정하기</Text>
+                </TouchableOpacity>
+                <View style={styles.menuDivider} />
+                <TouchableOpacity style={styles.menuItem} onPress={() => setMenuItem(null)}>
+                  <Text style={[styles.menuText, styles.menuTextDanger]}>삭제하기</Text>
+                </TouchableOpacity>
+                <View style={styles.menuDivider} />
+                <TouchableOpacity style={styles.menuItem} onPress={() => setMenuItem(null)}>
+                  <Text style={styles.menuText}>나만보기</Text>
+                </TouchableOpacity>
+                <View style={styles.menuDivider} />
+                <TouchableOpacity style={styles.menuItem} onPress={() => setMenuItem(null)}>
+                  <Text style={styles.menuText}>공유하기</Text>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity style={styles.menuItem} onPress={() => setMenuItem(null)}>
+                  <Text style={styles.menuText}>이 글 숨기기</Text>
+                </TouchableOpacity>
+                <View style={styles.menuDivider} />
+                <TouchableOpacity style={styles.menuItem} onPress={() => setMenuItem(null)}>
+                  <Text style={[styles.menuText, styles.menuTextDanger]}>신고하기</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -152,6 +267,38 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#11181C',
     fontFamily: 'Pretendard',
+  },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
+    gap: 12,
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#868686',
+    fontFamily: 'Pretendard',
+  },
+  retryButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#1F4F3A',
+  },
+  retryText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+    fontFamily: 'Pretendard',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#868686',
+    fontFamily: 'Pretendard',
+  },
+  footerLoading: {
+    paddingVertical: 24,
   },
   card: {
     backgroundColor: '#fff',
@@ -181,11 +328,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  avatarText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 16,
-    fontFamily: 'Pretendard',
+  avatarFallback: {
+    backgroundColor: '#E2E8F0',
   },
   userInfo: {
     flex: 1,
@@ -242,16 +386,9 @@ const styles = StyleSheet.create({
   expense: {
     color: '#D92D20',
   },
-  income: {
-    color: '#1F4F3A',
-  },
-  content: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    fontSize: 14,
-    color: '#11181C',
-    lineHeight: 20,
-    fontFamily: 'Pretendard',
+  amountHidden: {
+    color: '#868686',
+    fontWeight: '400',
   },
   actions: {
     flexDirection: 'row',
@@ -268,5 +405,31 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#868686',
     fontFamily: 'Pretendard',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  menuSheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+  },
+  menuItem: {
+    paddingHorizontal: 24,
+    paddingVertical: 16,
+  },
+  menuText: {
+    fontSize: 16,
+    color: '#11181C',
+    fontFamily: 'Pretendard',
+  },
+  menuTextDanger: {
+    color: '#D92D20',
+  },
+  menuDivider: {
+    height: 1,
+    backgroundColor: '#F1F5F9',
   },
 });

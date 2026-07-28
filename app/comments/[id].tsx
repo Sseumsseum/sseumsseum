@@ -1,64 +1,234 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
-  ScrollView,
+  FlatList,
   StyleSheet,
   TouchableOpacity,
   TextInput,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Image } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
-type Ledger = {
-  user: string;
-  avatarColor: string;
-  date: string;
-  type: '지출' | '수입' | '저축';
-  name: string;
-  amount: number;
-  memo: string | null;
-  amountPublic: boolean;
-};
+import { useAuth } from '@/providers/auth';
+import { createComment, deleteComment, fetchComments, fetchFeedDetail } from '@/services/feeds';
+import { resolveImageUrl } from '@/services/api';
+import { formatRelativeDate, avatarColorFor } from '@/utils/format';
+import type { FeedComment, FeedCommentBase, FeedDetail } from '@/types';
 
-type Comment = {
-  id: string;
-  user: string;
-  avatarColor: string;
-  time: string;
-  content: string;
-  parentCommentIdx: string | null;
-};
+const PAGE_SIZE = 10;
 
-const MOCK_POSTS: Record<string, Ledger> = {
-  '1': { user: '희원', avatarColor: '#9B5DE5', date: '2026.04.04 · 1시간 전', type: '지출', name: '르칵투스 명일동점', amount: 15000, amountPublic: true, memo: '와 된장 파스타 처음 먹어보는데 생각보다 맛있다' },
-  '2': { user: '진실', avatarColor: '#F77F00', date: '2026.04.04 · 43분 전', type: '지출', name: '에이블리', amount: 32000, amountPublic: true, memo: '카고 팬츠 너무 귀여움 ㅜㅜ 사이즈도 딱 맞았어' },
-};
+function Avatar({ nickname, profileImg, size }: { nickname: string; profileImg: string | null; size: number }) {
+  const [failed, setFailed] = useState(false);
+  const style = { width: size, height: size, borderRadius: size / 2 };
+  if (profileImg && !failed) {
+    return (
+      <Image
+        source={{ uri: resolveImageUrl(profileImg) }}
+        style={style}
+        accessibilityLabel={`${nickname}님의 프로필 사진`}
+        onError={() => setFailed(true)}
+      />
+    );
+  }
+  return (
+    <View style={[style, styles.avatarFallback]} accessibilityLabel={`${nickname}님의 프로필 사진`}>
+      <MaterialIcons name="person" size={size * 0.6} color="#94A3B8" />
+    </View>
+  );
+}
 
-const MOCK_COMMENTS: Record<string, Comment[]> = {
-  '1': [
-    { id: 'c1', user: '진실', avatarColor: '#F77F00', time: '30분 전', content: '된장 파스타라는 게 있어? ㅋㅋㅋ 신기하다', parentCommentIdx: null },
-    { id: 'c2', user: '희원', avatarColor: '#9B5DE5', time: '30분 전', content: '나도 몰랐는데 있더라구 ㅋㅋㅋ', parentCommentIdx: 'c1' },
-    { id: 'c3', user: '희진', avatarColor: '#00BBF9', time: '방금 전', content: '헐 ㅠㅠ 개맛있어 보인다 다음에 우리랑도 같이가자', parentCommentIdx: null },
-    { id: 'c4', user: '희원', avatarColor: '#9B5DE5', time: '방금 전', content: '가자가자', parentCommentIdx: null },
-  ],
-  '2': [],
-  '3': [],
-};
+function CommentRow({
+  item,
+  isReply,
+  isOwn,
+  onLikePress,
+  onReplyPress,
+  onDeletePress,
+}: {
+  item: FeedCommentBase;
+  isReply: boolean;
+  isOwn: boolean;
+  onLikePress: () => void;
+  onReplyPress: () => void;
+  onDeletePress: () => void;
+}) {
+  return (
+    <View style={[styles.commentRow, isReply && styles.replyRow]}>
+      <Avatar nickname={item.writer.nickname} profileImg={item.writer.profileImg} size={32} />
+      <View style={styles.commentBody}>
+        <View style={styles.commentTopRow}>
+          <Text style={styles.commentUser}>{item.writer.nickname}</Text>
+          <Text style={styles.commentTime}>{formatRelativeDate(item.createdAt)}</Text>
+        </View>
+        <Text style={styles.commentText}>{item.content}</Text>
+        <View style={styles.commentActions}>
+          <TouchableOpacity hitSlop={8} style={styles.commentHeart} onPress={onLikePress}>
+            <MaterialIcons
+              name={item.isHearted ? 'favorite' : 'favorite-border'}
+              size={14}
+              color={item.isHearted ? '#D92D20' : '#868686'}
+            />
+            {item.heartCount > 0 ? <Text style={styles.commentHeartCount}>{item.heartCount}</Text> : null}
+          </TouchableOpacity>
+          <TouchableOpacity hitSlop={8} onPress={onReplyPress}>
+            <Text style={styles.replyLabel}>답글달기</Text>
+          </TouchableOpacity>
+          {isOwn ? (
+            <TouchableOpacity hitSlop={8} onPress={onDeletePress}>
+              <Text style={[styles.replyLabel, styles.deleteLabel]}>삭제</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      </View>
+    </View>
+  );
+}
 
 export default function CommentsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { token, initializing, user } = useAuth();
+  const currentUserName = user?.name ?? user?.email?.split('@')[0];
+
+  const ledgerIdx = Number(id);
   const [input, setInput] = useState('');
+  const [detail, setDetail] = useState<FeedDetail | null>(null);
+  const [comments, setComments] = useState<FeedComment[]>([]);
+  const [cursor, setCursor] = useState<number | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [replyTarget, setReplyTarget] = useState<{ parentCommentIdx: number; nickname: string } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
 
-  const post = MOCK_POSTS[id ?? '1'];
-  const comments = MOCK_COMMENTS[id ?? '1'] ?? [];
+  const load = useCallback(async () => {
+    if (!Number.isFinite(ledgerIdx)) {
+      setError('잘못된 게시글입니다.');
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const [detailResult, commentsPage] = await Promise.all([
+        fetchFeedDetail(ledgerIdx, token),
+        fetchComments(ledgerIdx, null, PAGE_SIZE, token),
+      ]);
+      setDetail(detailResult);
+      setComments(commentsPage);
+      setCursor(commentsPage.length > 0 ? commentsPage[commentsPage.length - 1].commentIdx : null);
+      setHasMore(commentsPage.length === PAGE_SIZE);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '게시글을 불러오지 못했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  }, [ledgerIdx, token]);
 
-  const isExpense = post.type === '지출';
-  const amountText = isExpense ? `-${post.amount.toLocaleString()}원` : `+${post.amount.toLocaleString()}원`;
+  useEffect(() => {
+    if (initializing) return;
+    load();
+  }, [initializing, load]);
+
+  async function loadMoreComments() {
+    if (!hasMore || loadingMore || loading) return;
+    setLoadingMore(true);
+    try {
+      const page = await fetchComments(ledgerIdx, cursor, PAGE_SIZE, token);
+      setComments((prev) => [...prev, ...page]);
+      setCursor(page.length > 0 ? page[page.length - 1].commentIdx : cursor);
+      setHasMore(page.length === PAGE_SIZE);
+    } catch {
+      // 다음 페이지 로드 실패 시 조용히 중단하고 다음 스크롤에서 재시도할 수 있도록 둔다.
+    } finally {
+      setLoadingMore(false);
+    }
+  }
+
+  function toggleCommentHeart(commentIdx: number) {
+    setComments((prev) =>
+      prev.map((comment) => {
+        if (comment.commentIdx === commentIdx) {
+          return {
+            ...comment,
+            isHearted: !comment.isHearted,
+            heartCount: comment.heartCount + (comment.isHearted ? -1 : 1),
+          };
+        }
+        return {
+          ...comment,
+          replies: comment.replies.map((reply) =>
+            reply.commentIdx === commentIdx
+              ? { ...reply, isHearted: !reply.isHearted, heartCount: reply.heartCount + (reply.isHearted ? -1 : 1) }
+              : reply,
+          ),
+        };
+      }),
+    );
+  }
+
+  async function handleSubmit() {
+    const content = input.trim();
+    if (!content || submitting) return;
+
+    setSubmitting(true);
+    try {
+      const created = await createComment(ledgerIdx, content, replyTarget?.parentCommentIdx ?? null, token);
+      const newComment: FeedCommentBase = { ...created, isHearted: false };
+
+      if (replyTarget) {
+        setComments((prev) =>
+          prev.map((comment) =>
+            comment.commentIdx === replyTarget.parentCommentIdx
+              ? { ...comment, replies: [...comment.replies, newComment] }
+              : comment,
+          ),
+        );
+      } else {
+        setComments((prev) => [...prev, { ...newComment, replies: [] }]);
+      }
+
+      setDetail((prev) => (prev ? { ...prev, commentCount: prev.commentCount + 1 } : prev));
+      setInput('');
+      setReplyTarget(null);
+    } catch (err) {
+      Alert.alert('댓글 작성 실패', err instanceof Error ? err.message : '잠시 후 다시 시도해주세요.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function deleteCommentByIdx(commentIdx: number) {
+    try {
+      await deleteComment(commentIdx, token);
+      setComments((prev) =>
+        prev
+          .filter((comment) => comment.commentIdx !== commentIdx)
+          .map((comment) => ({
+            ...comment,
+            replies: comment.replies.filter((reply) => reply.commentIdx !== commentIdx),
+          })),
+      );
+      setDetail((prev) => (prev ? { ...prev, commentCount: Math.max(0, prev.commentCount - 1) } : prev));
+    } catch (err) {
+      Alert.alert('삭제 실패', err instanceof Error ? err.message : '잠시 후 다시 시도해주세요.');
+    }
+  }
+
+  function confirmDeleteComment(commentIdx: number) {
+    Alert.alert('댓글 삭제', '댓글을 삭제할까요?', [
+      { text: '취소', style: 'cancel' },
+      { text: '삭제', style: 'destructive', onPress: () => deleteCommentByIdx(commentIdx) },
+    ]);
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
@@ -70,69 +240,114 @@ export default function CommentsScreen() {
           <TouchableOpacity onPress={() => router.back()} hitSlop={8}>
             <MaterialIcons name="arrow-back-ios" size={20} color="#11181C" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>댓글 {comments.length}</Text>
+          <Text style={styles.headerTitle}>댓글 {detail?.commentCount ?? ''}</Text>
           <View style={styles.headerSpacer} />
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false}>
-          <View style={styles.postSnippet}>
-            <View style={[styles.postAvatar, { backgroundColor: post.avatarColor }]}>
-              <Text style={styles.postAvatarText}>{post.user[0]}</Text>
-            </View>
-            <View style={styles.postBody}>
-              <View style={styles.postTopRow}>
-                <Text style={styles.postUser}>{post.user}</Text>
-                <Text style={styles.postDate}>{post.date}</Text>
-                <Text style={[styles.postAmount, isExpense ? styles.expense : styles.income]}>
-                  {amountText}
-                </Text>
-              </View>
-              {post.memo ? <Text style={styles.postContent}>{post.memo}</Text> : null}
-            </View>
+        {loading ? (
+          <View style={styles.centered}>
+            <ActivityIndicator color="#1F4F3A" />
           </View>
-
-          <View style={styles.divider} />
-
-          {comments.map((comment) => (
-            <View
-              key={comment.id}
-              style={[styles.commentRow, comment.parentCommentIdx !== null && styles.replyRow]}
-            >
-              <View style={[styles.commentAvatar, { backgroundColor: comment.avatarColor }]}>
-                <Text style={styles.commentAvatarText}>{comment.user[0]}</Text>
-              </View>
-              <View style={styles.commentBody}>
-                <View style={styles.commentTopRow}>
-                  <Text style={styles.commentUser}>{comment.user}</Text>
-                  <Text style={styles.commentTime}>{comment.time}</Text>
+        ) : error || !detail ? (
+          <View style={styles.centered}>
+            <Text style={styles.errorText}>{error ?? '게시글을 불러오지 못했습니다.'}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={load}>
+              <Text style={styles.retryText}>다시 시도</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <FlatList
+            data={comments}
+            keyExtractor={(comment) => String(comment.commentIdx)}
+            showsVerticalScrollIndicator={false}
+            onEndReachedThreshold={0.4}
+            onEndReached={loadMoreComments}
+            ListHeaderComponent={
+              <>
+                <View style={styles.postSnippet}>
+                  <Avatar nickname={detail.writer.nickname} profileImg={detail.writer.profileImg} size={40} />
+                  <View style={styles.postBody}>
+                    <View style={styles.postTopRow}>
+                      <Text style={styles.postUser}>{detail.writer.nickname}</Text>
+                      <Text style={styles.postDate}>{formatRelativeDate(detail.date)}</Text>
+                      <Text style={[styles.postAmount, detail.amount !== null ? styles.expense : styles.amountHidden]}>
+                        {detail.amount !== null ? `-${detail.amount.toLocaleString()}원` : '금액 비공개'}
+                      </Text>
+                    </View>
+                    {detail.memo ? <Text style={styles.postContent}>{detail.memo}</Text> : null}
+                  </View>
                 </View>
-                <Text style={styles.commentText}>{comment.content}</Text>
-                <View style={styles.commentActions}>
-                  <TouchableOpacity hitSlop={8}>
-                    <MaterialIcons name="favorite-border" size={14} color="#868686" />
-                  </TouchableOpacity>
-                  <TouchableOpacity hitSlop={8}>
-                    <Text style={styles.replyLabel}>답글달기</Text>
-                  </TouchableOpacity>
-                </View>
+                <View style={styles.divider} />
+              </>
+            }
+            ListEmptyComponent={
+              <View style={styles.centered}>
+                <Text style={styles.emptyText}>아직 댓글이 없어요.</Text>
               </View>
-            </View>
-          ))}
-        </ScrollView>
+            }
+            ListFooterComponent={
+              loadingMore ? (
+                <View style={styles.footerLoading}>
+                  <ActivityIndicator color="#1F4F3A" />
+                </View>
+              ) : null
+            }
+            renderItem={({ item: comment }) => (
+              <View>
+                <CommentRow
+                  item={comment}
+                  isReply={false}
+                  isOwn={comment.writer.nickname === currentUserName}
+                  onLikePress={() => toggleCommentHeart(comment.commentIdx)}
+                  onReplyPress={() =>
+                    setReplyTarget({ parentCommentIdx: comment.commentIdx, nickname: comment.writer.nickname })
+                  }
+                  onDeletePress={() => confirmDeleteComment(comment.commentIdx)}
+                />
+                {comment.replies.map((reply) => (
+                  <CommentRow
+                    key={reply.commentIdx}
+                    item={reply}
+                    isReply
+                    isOwn={reply.writer.nickname === currentUserName}
+                    onLikePress={() => toggleCommentHeart(reply.commentIdx)}
+                    onReplyPress={() =>
+                      setReplyTarget({ parentCommentIdx: comment.commentIdx, nickname: reply.writer.nickname })
+                    }
+                    onDeletePress={() => confirmDeleteComment(reply.commentIdx)}
+                  />
+                ))}
+              </View>
+            )}
+          />
+        )}
+
+        {replyTarget ? (
+          <View style={styles.replyBanner}>
+            <Text style={styles.replyBannerText}>{replyTarget.nickname}님에게 답글 남기는 중</Text>
+            <TouchableOpacity hitSlop={8} onPress={() => setReplyTarget(null)}>
+              <MaterialIcons name="close" size={16} color="#868686" />
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
         <View style={styles.inputBar}>
-          <View style={[styles.inputAvatar, { backgroundColor: '#00BBF9' }]}>
-            <Text style={styles.inputAvatarText}>희</Text>
+          <View style={[styles.inputAvatar, { backgroundColor: avatarColorFor(currentUserName ?? '') }]}>
+            <Text style={styles.inputAvatarText}>{currentUserName?.[0] ?? '?'}</Text>
           </View>
           <TextInput
             style={styles.input}
-            placeholder="댓글을 입력하세요"
+            placeholder={replyTarget ? `${replyTarget.nickname}님에게 답글쓰기` : '댓글을 입력하세요'}
             placeholderTextColor="#868686"
             value={input}
             onChangeText={setInput}
             multiline
           />
-          <TouchableOpacity style={styles.sendButton}>
+          <TouchableOpacity
+            style={[styles.sendButton, (!input.trim() || submitting) && styles.sendButtonDisabled]}
+            onPress={handleSubmit}
+            disabled={!input.trim() || submitting}
+          >
             <MaterialIcons name="send" size={16} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -166,6 +381,38 @@ const styles = StyleSheet.create({
   headerSpacer: {
     width: 24,
   },
+  centered: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 48,
+    gap: 12,
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#868686',
+    fontFamily: 'Pretendard',
+  },
+  retryButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    backgroundColor: '#1F4F3A',
+  },
+  retryText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '600',
+    fontFamily: 'Pretendard',
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#868686',
+    fontFamily: 'Pretendard',
+  },
+  footerLoading: {
+    paddingVertical: 24,
+  },
   postSnippet: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -173,18 +420,10 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     gap: 8,
   },
-  postAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+  avatarFallback: {
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  postAvatarText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 16,
-    fontFamily: 'Pretendard',
+    backgroundColor: '#E2E8F0',
   },
   postBody: {
     flex: 1,
@@ -221,8 +460,9 @@ const styles = StyleSheet.create({
   expense: {
     color: '#D92D20',
   },
-  income: {
-    color: '#1F4F3A',
+  amountHidden: {
+    color: '#868686',
+    fontWeight: '400',
   },
   divider: {
     height: 1,
@@ -230,26 +470,13 @@ const styles = StyleSheet.create({
   },
   commentRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     paddingHorizontal: 16,
     paddingVertical: 16,
     gap: 8,
   },
   replyRow: {
     paddingLeft: 40,
-  },
-  commentAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  commentAvatarText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 13,
-    fontFamily: 'Pretendard',
   },
   commentBody: {
     flex: 1,
@@ -282,7 +509,33 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  commentHeart: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  commentHeartCount: {
+    fontSize: 12,
+    color: '#868686',
+    fontFamily: 'Pretendard',
+  },
   replyLabel: {
+    fontSize: 12,
+    color: '#868686',
+    fontFamily: 'Pretendard',
+  },
+  deleteLabel: {
+    color: '#D92D20',
+  },
+  replyBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#F8FAFC',
+  },
+  replyBannerText: {
     fontSize: 12,
     color: '#868686',
     fontFamily: 'Pretendard',
@@ -330,5 +583,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#1F4F3A',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  sendButtonDisabled: {
+    opacity: 0.4,
   },
 });
