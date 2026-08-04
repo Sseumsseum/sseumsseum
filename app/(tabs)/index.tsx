@@ -1,26 +1,26 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import {
-  View,
-  Text,
+  ActivityIndicator,
   FlatList,
-  StyleSheet,
-  TouchableOpacity,
   Modal,
   Pressable,
-  ActivityIndicator,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
-import Header from '@/components/header';
+import Header from '@/components/common/header';
 import { useAuth } from '@/providers/auth';
-import { fetchFeeds } from '@/services/feeds';
 import { resolveImageUrl } from '@/services/api';
-import { formatRelativeDate } from '@/utils/format';
+import { fetchFeeds } from '@/services/feeds';
 import type { FeedListItem } from '@/types';
+import { formatRelativeDate } from '@/utils/format';
 
 const PAGE_SIZE = 10;
 
@@ -56,10 +56,7 @@ function FeedCard({
             <MaterialIcons name="image" size={40} color="#CBD5E1" />
           </View>
         )}
-        <LinearGradient
-          colors={['rgba(0,0,0,0.22)', 'transparent']}
-          style={styles.imageTopOverlay}
-        >
+        <LinearGradient colors={['rgba(0,0,0,0.22)', 'transparent']} style={styles.imageTopOverlay}>
           <View style={styles.cardHeader}>
             {avatar && !avatarFailed ? (
               <Image
@@ -90,7 +87,9 @@ function FeedCard({
         <Text style={styles.storeName} numberOfLines={1}>
           {item.name}
         </Text>
-        <Text style={[styles.amount, item.amount !== null ? styles.expense : styles.amountHidden]}>{amountText}</Text>
+        <Text style={[styles.amount, item.amount !== null ? styles.expense : styles.amountHidden]}>
+          {amountText}
+        </Text>
       </View>
 
       <View style={styles.actions}>
@@ -162,7 +161,11 @@ export default function FeedScreen() {
     setItems((prev) =>
       prev.map((item) =>
         item.ledgerIdx === ledgerIdx
-          ? { ...item, isHearted: !item.isHearted, heartCount: item.heartCount + (item.isHearted ? -1 : 1) }
+          ? {
+              ...item,
+              isHearted: !item.isHearted,
+              heartCount: item.heartCount + (item.isHearted ? -1 : 1),
+            }
           : item,
       ),
     );
@@ -211,14 +214,22 @@ export default function FeedScreen() {
               onLikePress={() => toggleHeart(item.ledgerIdx)}
               onMenuPress={() => setMenuItem(item)}
               onCommentPress={() =>
-                router.push({ pathname: '/comments/[id]', params: { id: String(item.ledgerIdx) } } as any)
+                router.push({
+                  pathname: '/comments/[id]',
+                  params: { id: String(item.ledgerIdx) },
+                } as any)
               }
             />
           )}
         />
       )}
 
-      <Modal visible={menuItem !== null} transparent animationType="fade" onRequestClose={() => setMenuItem(null)}>
+      <Modal
+        visible={menuItem !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuItem(null)}
+      >
         <Pressable style={styles.modalOverlay} onPress={() => setMenuItem(null)}>
           <View style={styles.menuSheet}>
             {isOwn ? (

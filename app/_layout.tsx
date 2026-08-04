@@ -3,10 +3,15 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider, useAuth } from '@/providers/auth';
+
+import { useFonts } from 'expo-font';
+import * as SplashScreen from 'expo-splash-screen';
+SplashScreen.preventAutoHideAsync();
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -57,24 +62,45 @@ function RootLayoutNav() {
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const [fontsLoaded] = useFonts({
+    Pretendard: require('../assets/fonts/Pretendard-Medium.otf'),
+    PretendardBold: require('../assets/fonts/Pretendard-Bold.otf'),
+    NanumSquareNeo: require('../assets/fonts/NanumSquareNeoOTF-Rg.otf'),
+    NanumSquareNeoBold: require('../assets/fonts/NanumSquareNeoOTF-Bd.otf'),
+  });
+
+  useEffect(() => {
+    if (fontsLoaded) {
+      SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded]);
+
+  if (!fontsLoaded) {
+    return null;
+  }
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <AuthProvider>
-        <RootLayoutNav />
-      </AuthProvider>
-      <StatusBar
-        style="dark"
-        backgroundColor={
-          colorScheme === 'dark' ? DarkTheme.colors.background : DefaultTheme.colors.background
-        }
-        translucent={false}
-      />
-    </ThemeProvider>
+    <GestureHandlerRootView style={styles.root}>
+      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+        <AuthProvider>
+          <RootLayoutNav />
+        </AuthProvider>
+        <StatusBar
+          style="dark"
+          backgroundColor={
+            colorScheme === 'dark' ? DarkTheme.colors.background : DefaultTheme.colors.background
+          }
+          translucent={false}
+        />
+      </ThemeProvider>
+    </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
   loadingContainer: {
     flex: 1,
     alignItems: 'center',

@@ -20,8 +20,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+    padding: 16,
     backgroundColor: '#fff',
+    zIndex: 10,
+    elevation: 10,
   },
 });
