@@ -1,7 +1,14 @@
 import * as SecureStore from 'expo-secure-store';
-import { createContext, useContext, useEffect, useRef, useState, type PropsWithChildren } from 'react';
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type PropsWithChildren,
+} from 'react';
 
-import { post, setUnauthorizedHandler } from '@/services/api';
+import { post, setAuthTokenGetter, setUnauthorizedHandler } from '@/services/api';
 
 const AUTH_TOKEN_KEY = 'authToken';
 const AUTH_REFRESH_TOKEN_KEY = 'authRefreshToken';
@@ -75,12 +82,19 @@ export function AuthProvider({ children }: PropsWithChildren<{}>) {
           return null;
         }
 
-        const response = await post<ApiResponseWrapper<AuthSuccessResponse>>('/auth/refresh', { refreshToken: storedRefreshToken });
+        const response = await post<ApiResponseWrapper<AuthSuccessResponse>>('/auth/refresh', {
+          refreshToken: storedRefreshToken,
+        });
         if (!response.success || !response.data.accessToken) return null;
 
         const { accessToken, refreshToken: newRefreshToken, nickname } = response.data;
         const resolvedNickname = nickname ?? storedNickname ?? undefined;
-        await saveAuthData(accessToken, newRefreshToken ?? storedRefreshToken, storedEmail, resolvedNickname);
+        await saveAuthData(
+          accessToken,
+          newRefreshToken ?? storedRefreshToken,
+          storedEmail,
+          resolvedNickname,
+        );
         setToken(accessToken);
         setUser({ email: storedEmail, name: resolvedNickname });
         return accessToken;
@@ -124,8 +138,17 @@ export function AuthProvider({ children }: PropsWithChildren<{}>) {
     restoreSession();
   }, []);
 
+  // auth.tsx — 앱 시작할 때 "내 토큰 값은 이렇게 가져가" 라고 등록
+  useEffect(() => {
+    setAuthTokenGetter(() => token);
+  }, [token]);
+
   // 인증 성공 시, 토큰과 이메일을 저장하고 상태를 업데이트합니다.
-  async function handleAuthSuccess(result: AuthSuccessResponse, email: string, fallbackNickname?: string) {
+  async function handleAuthSuccess(
+    result: AuthSuccessResponse,
+    email: string,
+    fallbackNickname?: string,
+  ) {
     const jwt = result.accessToken;
     const refreshToken = result.refreshToken;
 
