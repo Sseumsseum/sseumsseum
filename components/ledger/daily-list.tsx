@@ -1,14 +1,17 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { StyleSheet, Text, View } from 'react-native';
 import { Tabs } from 'react-native-collapsible-tab-view';
 
+import { getCategoryIcon } from './category-icons';
+
 type Transaction = {
   id: string;
-  icon: string;
-  iconBg: string;
+  category: string;
   name: string;
   method: string;
   amount: number;
   isExpense: boolean;
+  sharedToFeed: boolean;
 };
 
 export type DaySection = {
@@ -26,39 +29,39 @@ export const MOCK_SECTIONS: DaySection[] = [
     data: [
       {
         id: '1',
-        icon: '',
-        iconBg: '#FCEFC7',
+        category: '카페·간식',
         name: '투썸플레이스',
         method: '신용카드',
         amount: 6800,
         isExpense: true,
+        sharedToFeed: true,
       },
       {
         id: '2',
-        icon: '',
-        iconBg: '#FBE3D5',
+        category: '식비',
         name: '김밥천국',
         method: '체크카드',
         amount: 9200,
         isExpense: true,
+        sharedToFeed: false,
       },
       {
         id: '3',
-        icon: '',
-        iconBg: '#DDEEE4',
+        category: '쇼핑',
         name: 'GS25 편의점',
         method: '신용카드',
         amount: 4400,
         isExpense: true,
+        sharedToFeed: false,
       },
       {
         id: '4',
-        icon: '',
-        iconBg: '#DCE9F7',
+        category: '교통',
         name: '지하철',
         method: '교통카드',
         amount: 1400,
         isExpense: true,
+        sharedToFeed: true,
       },
     ],
   },
@@ -83,20 +86,28 @@ export function renderDaySectionHeader({ section }: { section: DaySection }) {
 }
 
 export function TransactionRow({ item }: { item: Transaction }) {
+  const { icon, bg, color } = getCategoryIcon(item.category);
   return (
     <View style={styles.row}>
-      <View style={[styles.rowIcon, { backgroundColor: item.iconBg }]}>
-        <Text style={styles.rowIconText}>{item.icon}</Text>
+      <View style={[styles.rowIcon, { backgroundColor: bg }]}>
+        <MaterialIcons name={icon} size={20} color={color} />
       </View>
       <View style={styles.rowInfo}>
         <Text style={styles.rowName}>{item.name}</Text>
         <Text style={styles.rowMethod}>{item.method}</Text>
       </View>
-      <Text style={[styles.rowAmount, item.isExpense && styles.rowAmountExpense]}>
-        {item.isExpense ? '-' : '+'}
-        {formatWon(item.amount)}
-        <Text style={styles.rowAmountUnit}>원</Text>
-      </Text>
+      <View style={styles.rowAmountColumn}>
+        <Text style={[styles.rowAmount, item.isExpense && styles.rowAmountExpense]}>
+          {item.isExpense ? '-' : '+'}
+          {formatWon(item.amount)}
+          <Text style={styles.rowAmountUnit}>원</Text>
+        </Text>
+        {item.sharedToFeed && (
+          <View style={styles.sharedBadge}>
+            <Text style={styles.sharedBadgeText}>피드 공개</Text>
+          </View>
+        )}
+      </View>
     </View>
   );
 }
@@ -170,9 +181,6 @@ export const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rowIconText: {
-    fontSize: 20,
-  },
   rowInfo: {
     flex: 1,
   },
@@ -188,6 +196,10 @@ export const styles = StyleSheet.create({
     marginTop: 2,
     fontFamily: 'Pretendard',
   },
+  rowAmountColumn: {
+    alignItems: 'flex-end',
+    gap: 6,
+  },
   rowAmount: {
     fontSize: 16,
     fontWeight: '700',
@@ -201,6 +213,20 @@ export const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '400',
     color: '#868686',
+  },
+  sharedBadge: {
+    backgroundColor: '#FDF6DC',
+    borderWidth: 1,
+    borderColor: '#F0DFA0',
+    borderRadius: 12,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  sharedBadgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#8A6D1F',
+    fontFamily: 'Pretendard',
   },
   separator: {
     height: StyleSheet.hairlineWidth,
