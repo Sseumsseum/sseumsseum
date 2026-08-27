@@ -4,7 +4,8 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import 'react-native-reanimated';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
+import { ReanimatedLogLevel, configureReanimatedLogger } from 'react-native-reanimated';
 
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider, useAuth } from '@/providers/auth';
@@ -12,6 +13,13 @@ import { AuthProvider, useAuth } from '@/providers/auth';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 SplashScreen.preventAutoHideAsync();
+
+// react-native-collapsible-tab-view의 Lazy 컴포넌트가 렌더 중에 shared value를 읽어서
+// 발생하는 strict mode 경고를 숨김. 라이브러리 내부 코드라 우리 쪽에서 고칠 수 없음.
+configureReanimatedLogger({
+  level: ReanimatedLogLevel.warn,
+  strict: false,
+});
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -55,6 +63,7 @@ function RootLayoutNav() {
       <Stack.Screen name="signup" />
       <Stack.Screen name="comments/[id]" />
       <Stack.Screen name="notifications" />
+      <Stack.Screen name="write" />
       <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
     </Stack>
   );
@@ -81,18 +90,21 @@ export default function RootLayout() {
 
   return (
     <GestureHandlerRootView style={styles.root}>
-      <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-        <AuthProvider>
-          <RootLayoutNav />
-        </AuthProvider>
-        <StatusBar
-          style="dark"
-          backgroundColor={
-            colorScheme === 'dark' ? DarkTheme.colors.background : DefaultTheme.colors.background
-          }
-          translucent={false}
-        />
-      </ThemeProvider>
+      {/* KeyboardAwareScrollView(write.tsx 등)가 동작하려면 트리 어딘가에 KeyboardProvider가 있어야 함 */}
+      <KeyboardProvider>
+        <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
+          <AuthProvider>
+            <RootLayoutNav />
+          </AuthProvider>
+          <StatusBar
+            style="dark"
+            backgroundColor={
+              colorScheme === 'dark' ? DarkTheme.colors.background : DefaultTheme.colors.background
+            }
+            translucent={false}
+          />
+        </ThemeProvider>
+      </KeyboardProvider>
     </GestureHandlerRootView>
   );
 }

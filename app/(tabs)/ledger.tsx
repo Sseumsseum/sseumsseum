@@ -2,6 +2,7 @@ import Header from '@/components/common/header';
 import DatePickerModal from '@/components/ledger/date-picker-modal';
 import LedgerTabs from '@/components/ledger/ledger-tabs';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -33,6 +34,7 @@ function formatWon(amount: number) {
 }
 
 export default function LedgerScreen() {
+  const router = useRouter();
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(getTodayString);
   const [calendarJumpKey, setCalendarJumpKey] = useState(0);
@@ -128,6 +130,17 @@ export default function LedgerScreen() {
         onClose={() => setShowDatePicker(false)}
         onSelectDate={handleHeaderSelectDate}
       />
+
+      {/* 캘린더에서 고른 날짜로 바로 작성화면 진입. 완전 불투명은 아니지만
+          살짝만 투명하게 둬서(콘텐츠를 가리는 느낌은 줄이되) 탭 가능한 버튼이라는
+          인지도는 유지되게 함. */}
+      <TouchableOpacity
+        style={styles.fab}
+        activeOpacity={0.85}
+        onPress={() => router.push({ pathname: '/write', params: { date: selectedDate } })}
+      >
+        <MaterialIcons name="add" size={26} color="#fff" />
+      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -143,6 +156,26 @@ const styles = StyleSheet.create({
   tabsContainer: {
     flex: 1,
     overflow: 'hidden',
+  },
+  fab: {
+    position: 'absolute',
+    right: 20,
+    bottom: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    // opacity(뷰 전체 투명도) 대신 배경색 자체에 알파를 줌. opacity를 elevation과
+    // 같이 쓰면 안드로이드에서 그림자용 레이어 합성 때문에 거의 안 먹힌 것처럼
+    // 보이는 문제가 있어서, 색상값으로 처리해 플랫폼 관계없이 동일하게 렌더링되게 함.
+    // 아이콘은 이 영향을 안 받아서 또렷하게 남음.
+    backgroundColor: 'rgba(31, 79, 58, 0.8)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
   },
   monthSelector: {
     flexDirection: 'row',

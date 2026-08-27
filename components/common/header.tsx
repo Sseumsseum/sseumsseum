@@ -22,7 +22,5 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     padding: 16,
     backgroundColor: '#fff',
-    zIndex: 10,
-    elevation: 10,
   },
 });

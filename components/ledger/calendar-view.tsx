@@ -36,9 +36,9 @@ const MOCK_DAY_DATA: Record<string, { income?: string; expense?: string }> = {
 
 function weekdayColor(date: DateData) {
   const dayOfWeek = new Date(date.timestamp).getDay();
-  if (dayOfWeek === 0) return '#D92D20';
-  if (dayOfWeek === 6) return '#3DA9F2';
-  return '#11181C';
+  if (dayOfWeek === 0) return '#D92D20'; // 일요일 → 빨강
+  if (dayOfWeek === 6) return '#3DA9F2'; // 토요일 → 파랑
+  return '#11181C'; // 평일
 }
 
 type CalendarViewProps = {
@@ -66,7 +66,7 @@ export default function CalendarView({
 
           const dayData = MOCK_DAY_DATA[date.dateString];
           const isSelected = date.dateString === selectedDate;
-          const isOutsideMonth = state === 'disabled';
+          const isOutsideMonth = state === 'disabled'; // 이전/다음 달 날짜
 
           return (
             <TouchableOpacity style={styles.dayCell} onPress={() => onSelectDate(date.dateString)}>
@@ -104,7 +104,7 @@ export default function CalendarView({
       sections={MOCK_SECTIONS}
       keyExtractor={(item) => item.id}
       showsVerticalScrollIndicator={false}
-      contentContainerStyle={dailyListStyles.listContent}
+      contentContainerStyle={[dailyListStyles.listContent, styles.listContentExtra]}
       stickySectionHeadersEnabled={false}
       ListHeaderComponent={calendarGrid}
       renderSectionHeader={({ section }) =>
@@ -119,6 +119,12 @@ export default function CalendarView({
 const styles = StyleSheet.create({
   calendarWrapper: {
     marginTop: 15,
+  },
+  // 가계부 화면 우하단 FAB(56px, bottom 24)에 리스트 마지막 항목이
+  // 가려지지 않도록 달력 탭에만 여유 공간을 더 줌. "일일" 탭(daily-list.tsx)의
+  // listContent는 그대로 두고 여기서만 덧붙임.
+  listContentExtra: {
+    paddingBottom: 90,
   },
   dayCell: {
     height: 62,

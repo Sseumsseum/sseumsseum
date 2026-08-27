@@ -85,3 +85,8 @@ export type FeedDetail = {
   commentCount: number;
   comments: FeedComment[];
 };
+
+export type Payment = {
+  idx: string;
+  name: string;
+};
