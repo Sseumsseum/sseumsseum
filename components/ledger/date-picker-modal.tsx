@@ -8,6 +8,7 @@ import {
   TouchableWithoutFeedback,
   View,
   useWindowDimensions,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { Calendar, type DateData } from 'react-native-calendars';
 import { Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -36,10 +37,23 @@ export default function DatePickerModal({
   const { height: windowHeight } = useWindowDimensions();
   const [isMounted, setIsMounted] = useState(visible);
   const backdropOpacity = useSharedValue(0);
+  // 이전엔 sheetWrapper에 windowHeight * 0.62 고정 height를 줬는데, 실제 콘텐츠
+  // (핸들+헤더+달력)가 그보다 짧아서 하단에 빈 여백이 남았음. maxHeight로 상한만
+  // 두고 onLayout으로 실제 렌더 높이를 측정해 콘텐츠 크기에 맞게 자동으로 줄임.
+  // 측정된 높이는 오프스크린 애니메이션 거리로도 그대로 재사용(SelectSheet와 동일 패턴).
+  const sheetHeight = useSharedValue(0);
   const sheetTranslateY = useSharedValue(windowHeight);
   const dragY = useSharedValue(0);
 
+  function handleSheetLayout(event: LayoutChangeEvent) {
+    const measured = event.nativeEvent.layout.height;
+    if (measured > 0) {
+      sheetHeight.value = measured;
+    }
+  }
+
   useEffect(() => {
+    const offscreenY = sheetHeight.value || windowHeight;
     if (visible) {
       setIsMounted(true);
       dragY.value = 0;
@@ -47,13 +61,13 @@ export default function DatePickerModal({
       sheetTranslateY.value = withTiming(0, { duration: 250 });
     } else {
       backdropOpacity.value = withTiming(0, { duration: 200 });
-      sheetTranslateY.value = withTiming(windowHeight, { duration: 250 }, (finished) => {
+      sheetTranslateY.value = withTiming(offscreenY, { duration: 250 }, (finished) => {
         if (finished) {
           scheduleOnRN(setIsMounted, false);
         }
       });
     }
-  }, [visible, windowHeight, backdropOpacity, sheetTranslateY, dragY]);
+  }, [visible, windowHeight, backdropOpacity, sheetHeight, sheetTranslateY, dragY]);
 
   const panGesture = Gesture.Pan()
     .activeOffsetY(10)
@@ -85,7 +99,10 @@ export default function DatePickerModal({
           <Animated.View style={[styles.backdrop, backdropStyle]} />
         </TouchableWithoutFeedback>
 
-        <Animated.View style={[styles.sheetWrapper, { height: windowHeight * 0.62 }, sheetStyle]}>
+        <Animated.View
+          style={[styles.sheetWrapper, sheetStyle]}
+          onLayout={handleSheetLayout}
+        >
           <SafeAreaView edges={['bottom']}>
             <GestureDetector gesture={panGesture}>
               <View>
@@ -101,6 +118,9 @@ export default function DatePickerModal({
                 <Calendar
                   current={selectedDate}
                   monthFormat="yyyy년 MMMM"
+                  // 달마다 주 수(5주/6주)가 달라서 콘텐츠 높이가 들쭉날쭉했음.
+                  // 항상 6주로 고정해서 시트 높이가 달이 바뀌어도 안 변하게 함.
+                  showSixWeeks
                   onDayPress={(day: DateData) => {
                     onSelectDate(day.dateString);
                     onClose();
@@ -146,6 +166,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
+    maxHeight: '80%',
     overflow: 'hidden',
   },
   handle: {
@@ -173,6 +194,6 @@ const styles = StyleSheet.create({
   },
   calendar: {
     paddingHorizontal: 8,
-    paddingBottom: 12,
+    paddingBottom: 20,
   },
 });
