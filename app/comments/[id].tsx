@@ -297,7 +297,7 @@ export default function CommentsScreen() {
                 <CommentRow
                   item={comment}
                   isReply={false}
-                  isOwn={comment.writer.nickname === currentUserName}
+                  isOwn={comment.isMine}
                   onLikePress={() => toggleCommentHeart(comment.commentIdx)}
                   onReplyPress={() =>
                     setReplyTarget({ parentCommentIdx: comment.commentIdx, nickname: comment.writer.nickname })
@@ -309,7 +309,7 @@ export default function CommentsScreen() {
                     key={reply.commentIdx}
                     item={reply}
                     isReply
-                    isOwn={reply.writer.nickname === currentUserName}
+                    isOwn={reply.isMine}
                     onLikePress={() => toggleCommentHeart(reply.commentIdx)}
                     onReplyPress={() =>
                       setReplyTarget({ parentCommentIdx: comment.commentIdx, nickname: reply.writer.nickname })

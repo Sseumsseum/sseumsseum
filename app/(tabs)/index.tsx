@@ -12,13 +12,14 @@ import {
   Text,
   TouchableOpacity,
   View,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import Header from '@/components/common/header';
 import { useAuth } from '@/providers/auth';
+import { fetchFeeds, hideFeed, likeFeed, unlikeFeed } from '@/services/feeds';
 import { resolveImageUrl } from '@/services/api';
-import { fetchFeeds } from '@/services/feeds';
 import type { FeedListItem } from '@/types';
 import { formatRelativeDate } from '@/utils/format';
 
@@ -92,6 +93,8 @@ function FeedCard({
         </Text>
       </View>
 
+      {item.memo ? <Text style={styles.content}>{item.memo}</Text> : null}
+
       <View style={styles.actions}>
         <TouchableOpacity style={styles.actionItem} hitSlop={8} onPress={onLikePress}>
           <MaterialIcons
@@ -121,6 +124,7 @@ export default function FeedScreen() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [menuItem, setMenuItem] = useState<FeedListItem | null>(null);
+  const [heartPending, setHeartPending] = useState<Set<number>>(new Set());
 
   const loadInitial = useCallback(async () => {
     setLoading(true);
@@ -157,22 +161,54 @@ export default function FeedScreen() {
     }
   }
 
-  function toggleHeart(ledgerIdx: number) {
+  async function toggleHeart(item: FeedListItem) {
+    if (heartPending.has(item.ledgerIdx)) return;
+    const wasHearted = item.isHearted;
+    const wasCount = item.heartCount;
+
+    setHeartPending((prev) => new Set(prev).add(item.ledgerIdx));
     setItems((prev) =>
-      prev.map((item) =>
-        item.ledgerIdx === ledgerIdx
-          ? {
-              ...item,
-              isHearted: !item.isHearted,
-              heartCount: item.heartCount + (item.isHearted ? -1 : 1),
-            }
-          : item,
+      prev.map((i) =>
+        i.ledgerIdx === item.ledgerIdx
+          ? { ...i, isHearted: !wasHearted, heartCount: wasCount + (wasHearted ? -1 : 1) }
+          : i,
       ),
     );
+
+    try {
+      const result = wasHearted
+        ? await unlikeFeed(item.ledgerIdx, token)
+        : await likeFeed(item.ledgerIdx, token);
+      setItems((prev) =>
+        prev.map((i) =>
+          i.ledgerIdx === item.ledgerIdx ? { ...i, isHearted: result.hearted, heartCount: result.heartCount } : i,
+        ),
+      );
+    } catch {
+      setItems((prev) =>
+        prev.map((i) => (i.ledgerIdx === item.ledgerIdx ? { ...i, isHearted: wasHearted, heartCount: wasCount } : i)),
+      );
+    } finally {
+      setHeartPending((prev) => {
+        const next = new Set(prev);
+        next.delete(item.ledgerIdx);
+        return next;
+      });
+    }
   }
 
   const currentUserName = user?.name ?? user?.email?.split('@')[0];
   const isOwn = menuItem?.writer.nickname === currentUserName;
+
+  async function handleHide(item: FeedListItem) {
+    setMenuItem(null);
+    try {
+      await hideFeed(item.ledgerIdx, token);
+      setItems((prev) => prev.filter((i) => i.ledgerIdx !== item.ledgerIdx));
+    } catch (err) {
+      Alert.alert('숨기기 실패', err instanceof Error ? err.message : '잠시 후 다시 시도해주세요.');
+    }
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -211,7 +247,7 @@ export default function FeedScreen() {
           renderItem={({ item }) => (
             <FeedCard
               item={item}
-              onLikePress={() => toggleHeart(item.ledgerIdx)}
+              onLikePress={() => toggleHeart(item)}
               onMenuPress={() => setMenuItem(item)}
               onCommentPress={() =>
                 router.push({
@@ -252,7 +288,7 @@ export default function FeedScreen() {
               </>
             ) : (
               <>
-                <TouchableOpacity style={styles.menuItem} onPress={() => setMenuItem(null)}>
+                <TouchableOpacity style={styles.menuItem} onPress={() => menuItem && handleHide(menuItem)}>
                   <Text style={styles.menuText}>이 글 숨기기</Text>
                 </TouchableOpacity>
                 <View style={styles.menuDivider} />
@@ -401,9 +437,19 @@ const styles = StyleSheet.create({
     color: '#868686',
     fontWeight: '400',
   },
+  content: {
+    paddingHorizontal: 16,
+    paddingTop: 0,
+    paddingBottom: 4,
+    fontSize: 14,
+    color: '#11181C',
+    lineHeight: 20,
+    fontFamily: 'Pretendard',
+  },
   actions: {
     flexDirection: 'row',
     paddingHorizontal: 16,
+    paddingTop: 12,
     paddingBottom: 16,
     gap: 16,
   },

@@ -1,5 +1,5 @@
-import { deleteData, getData, postData } from '@/services/api';
-import type { FeedComment, FeedDetail, FeedListItem, NewComment } from '@/types';
+import { deleteData, deleteDataResult, getData, postData } from '@/services/api';
+import type { FeedComment, FeedDetail, FeedHeartResult, FeedListItem, NewComment } from '@/types';
 
 function authHeaders(token: string | null) {
   return token ? { Authorization: `Bearer ${token}` } : undefined;
@@ -31,4 +31,20 @@ export function createComment(ledgerIdx: number, content: string, parentCommentI
 
 export function deleteComment(commentIdx: number, token: string | null) {
   return deleteData(`/comments/${commentIdx}`, authHeaders(token));
+}
+
+export function hideFeed(ledgerIdx: number, token: string | null) {
+  return postData<null>(`/feeds/${ledgerIdx}/hide`, undefined, authHeaders(token));
+}
+
+export function unhideFeed(ledgerIdx: number, token: string | null) {
+  return deleteData(`/feeds/${ledgerIdx}/hide`, authHeaders(token));
+}
+
+export function likeFeed(ledgerIdx: number, token: string | null) {
+  return postData<FeedHeartResult>(`/feeds/${ledgerIdx}/heart`, undefined, authHeaders(token));
+}
+
+export function unlikeFeed(ledgerIdx: number, token: string | null) {
+  return deleteDataResult<FeedHeartResult>(`/feeds/${ledgerIdx}/heart`, authHeaders(token));
 }

@@ -58,12 +58,20 @@ function RootLayoutNav() {
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="(tabs)" options={{ gestureEnabled: false }} />
       <Stack.Screen name="login" />
       <Stack.Screen name="signup" />
       <Stack.Screen name="comments/[id]" />
       <Stack.Screen name="notifications" />
       <Stack.Screen name="write" />
+      <Stack.Screen name="account" />
+      <Stack.Screen name="friends" />
+      <Stack.Screen name="notification-settings" />
+      <Stack.Screen name="calendar-settings" />
+      <Stack.Screen name="widget-settings" />
+      <Stack.Screen name="categories" />
+      <Stack.Screen name="payment-methods" />
+      <Stack.Screen name="fixed-expenses" />
       <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
     </Stack>
   );

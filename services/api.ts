@@ -162,3 +162,9 @@ export async function deleteData(path: string, headers?: ApiHeaders): Promise<vo
   const response = await del<ApiResponse<null>>(path, headers);
   if (!response.success) throw new Error(response.message);
 }
+
+export async function deleteDataResult<T>(path: string, headers?: ApiHeaders): Promise<T> {
+  const response = await del<ApiResponse<T>>(path, headers);
+  if (!response.success) throw new Error(response.message);
+  return response.data;
+}
